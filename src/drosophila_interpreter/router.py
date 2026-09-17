@@ -1,69 +1,50 @@
-"""Semantic router translating text inputs into biological sensory currents."""
-
-from __future__ import annotations
+"""Sensory router translating text prompts into biophysical current injections."""
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from drosophila_interpreter.config import (
+    COSINE_SIMILARITY_SATURATION,
     COSINE_SIMILARITY_THRESHOLD,
-    DEFAULT_EMBEDDING_MODEL,
     SENSORY_ANCHORS,
     SensoryModality,
 )
 
 
 class SensoryRouter:
-    """Routes arbitrary natural language strings to biological receptor activations."""
+    """Encodes natural text into normalized sensory currents via semantic embeddings."""
 
-    def __init__(
-        self,
-        model_name: str = DEFAULT_EMBEDDING_MODEL,
-        threshold: float = COSINE_SIMILARITY_THRESHOLD,
-    ) -> None:
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
         self.model = SentenceTransformer(model_name)
-        self.threshold = threshold
-        self._anchor_modalities: list[SensoryModality] = list(SENSORY_ANCHORS.keys())
-        self._anchor_embeddings: np.ndarray = self._precompute_anchor_embeddings()
+        self._modality_keys: list[SensoryModality] = list(SENSORY_ANCHORS.keys())
 
-    def _precompute_anchor_embeddings(self) -> np.ndarray:
-        """Embeds biological anchor descriptions once at initialization."""
-        anchor_texts = [SENSORY_ANCHORS[m] for m in self._anchor_modalities]
-        embeddings = self.model.encode(
-            anchor_texts,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )
-        return embeddings
+        # Precompute and group normalized embeddings per modality
+        self._anchor_matrix_map: dict[SensoryModality, np.ndarray] = {}
+        for mod, texts in SENSORY_ANCHORS.items():
+            embeddings = self.model.encode(texts, normalize_embeddings=True)
+            self._anchor_matrix_map[mod] = np.asarray(embeddings, dtype=np.float32)
 
-    def route(self, text: str) -> dict[SensoryModality, float]:
-        """Calculates normalized sensory current injections for an input prompt.
+    def route(self, prompt: str) -> dict[SensoryModality, float]:
+        """Convert an input prompt into normalized injection currents [0.0, 1.0]."""
+        if not prompt.strip():
+            return {mod: 0.0 for mod in self._modality_keys}
 
-        Args:
-            text: Arbitrary user prompt (e.g. 'A juicy ripe peach is placed here').
-
-        Returns:
-            Dictionary mapping each SensoryModality to a current value in [0.0, 1.0].
-        """
-        if not text.strip():
-            return {modality: 0.0 for modality in self._anchor_modalities}
-
-        text_embedding = self.model.encode(
-            text,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )
-
-        similarities = np.dot(self._anchor_embeddings, text_embedding)
+        prompt_vec = self.model.encode(prompt, normalize_embeddings=True)
+        prompt_vec = np.asarray(prompt_vec, dtype=np.float32)
 
         currents: dict[SensoryModality, float] = {}
-        for modality, sim in zip(self._anchor_modalities, similarities, strict=True):
-            if sim < self.threshold:
-                scaled_current = 0.0
-            else:
-                scaled_current = float((sim - self.threshold) / (1.0 - self.threshold))
-                scaled_current = min(max(scaled_current, 0.0), 1.0)
+        denominator = COSINE_SIMILARITY_SATURATION - COSINE_SIMILARITY_THRESHOLD
 
-            currents[modality] = round(scaled_current, 4)
+        for mod in self._modality_keys:
+            anchors = self._anchor_matrix_map[mod]
+            # Dot product against all sub-anchors, take the strongest match
+            sub_sims = np.dot(anchors, prompt_vec)
+            max_sim = float(np.max(sub_sims))
+
+            if max_sim <= COSINE_SIMILARITY_THRESHOLD:
+                currents[mod] = 0.0
+            else:
+                scaled = (max_sim - COSINE_SIMILARITY_THRESHOLD) / denominator
+                currents[mod] = float(np.clip(scaled, 0.0, 1.0))
 
         return currents
