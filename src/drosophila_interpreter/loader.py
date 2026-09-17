@@ -2,9 +2,6 @@
 
 from dataclasses import dataclass, field
 import logging
-from pathlib import Path
-from typing import Any
-
 import numpy as np
 import scipy.sparse as sp
 
@@ -100,10 +97,10 @@ def create_mock_connectome(neuron_count: int = 100) -> ConnectomeData:
     # Wire excitatory circuits:
     # 0, 1 (Sugar) -> 12 (FIP)
     # 2, 3 (Threat) -> 10, 11 (Giant Fiber / Takeoff)
-    pre = np.array([0, 1, 2, 3], dtype=np.int32)
-    post = np.array([12, 12, 10, 11], dtype=np.int32)
-    syn_counts = np.array([15, 10, 25, 20], dtype=np.float32)
-    signs = np.array([1, 1, 1, 1], dtype=np.int8)  # All excitatory
+    pre = np.array([0, 1, 2, 3, 2, 3], dtype=np.int32)
+    post = np.array([12, 12, 10, 11, 11, 10], dtype=np.int32)
+    syn_counts = np.array([300, 300, 350, 350, 350, 350], dtype=np.float32)
+    signs = np.array([1, 1, 1, 1, 1, 1], dtype=np.int8)  # All excitatory
 
     weights = build_csr_weights(pre, post, syn_counts, signs, neuron_count)
 
