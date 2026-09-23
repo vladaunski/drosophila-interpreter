@@ -1,7 +1,8 @@
 """Connectome data ingestion, graph indexing, and sparse matrix generation."""
 
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
+
 import numpy as np
 import scipy.sparse as sp
 
